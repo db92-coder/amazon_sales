@@ -1,5 +1,5 @@
 -- Rebuild category dimension by splitting the category path into levels.
-DROP TABLE IF EXISTS analytics.dim_category;
+DROP TABLE IF EXISTS analytics.dim_category CASCADE;
 
 CREATE TABLE analytics.dim_category AS
 WITH exploded AS (
@@ -23,4 +23,3 @@ ALTER TABLE analytics.dim_category
 
 CREATE UNIQUE INDEX dim_category_level_name_ux
     ON analytics.dim_category (category_level, category_name);
-

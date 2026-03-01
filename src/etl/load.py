@@ -64,3 +64,71 @@ def build_normalized_tables(database_url: str, sql_dir: Path) -> None:
         if not sql_file.exists():
             raise FileNotFoundError(f"Missing SQL script: {sql_file}")
         run_sql_file(database_url, sql_file)
+
+
+def validate_normalized_tables(database_url: str) -> list[str]:
+    # Rule name + query returning a single integer violation count.
+    checks: list[tuple[str, str]] = [
+        (
+            "dim_product_duplicate_product_id",
+            """
+            SELECT COUNT(*) FROM (
+                SELECT product_id
+                FROM analytics.dim_product
+                GROUP BY product_id
+                HAVING COUNT(*) > 1
+            ) d;
+            """,
+        ),
+        (
+            "dim_category_duplicate_category_id",
+            """
+            SELECT COUNT(*) FROM (
+                SELECT category_id
+                FROM analytics.dim_category
+                GROUP BY category_id
+                HAVING COUNT(*) > 1
+            ) d;
+            """,
+        ),
+        (
+            "bridge_orphan_product_id",
+            """
+            SELECT COUNT(*)
+            FROM analytics.bridge_product_category b
+            LEFT JOIN analytics.dim_product p
+              ON p.product_id = b.product_id
+            WHERE p.product_id IS NULL;
+            """,
+        ),
+        (
+            "bridge_orphan_category_id",
+            """
+            SELECT COUNT(*)
+            FROM analytics.bridge_product_category b
+            LEFT JOIN analytics.dim_category c
+              ON c.category_id = b.category_id
+            WHERE c.category_id IS NULL;
+            """,
+        ),
+        (
+            "fact_review_orphan_product_id",
+            """
+            SELECT COUNT(*)
+            FROM analytics.fact_review f
+            LEFT JOIN analytics.dim_product p
+              ON p.product_id = f.product_id
+            WHERE p.product_id IS NULL;
+            """,
+        ),
+    ]
+
+    issues: list[str] = []
+    engine = create_engine(database_url, pool_pre_ping=True)
+    with engine.begin() as conn:
+        for rule_name, sql_query in checks:
+            violation_count = conn.execute(text(sql_query)).scalar_one()
+            if int(violation_count) > 0:
+                issues.append(f"{rule_name}={violation_count}")
+
+    return issues

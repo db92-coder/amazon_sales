@@ -1,5 +1,5 @@
 -- Rebuild product dimension from staging.
-DROP TABLE IF EXISTS analytics.dim_product;
+DROP TABLE IF EXISTS analytics.dim_product CASCADE;
 
 CREATE TABLE analytics.dim_product AS
 SELECT DISTINCT ON (product_id)
@@ -21,4 +21,3 @@ ORDER BY product_id, rating_count DESC NULLS LAST;
 
 ALTER TABLE analytics.dim_product
     ADD CONSTRAINT dim_product_pk PRIMARY KEY (product_id);
-

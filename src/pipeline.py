@@ -4,7 +4,12 @@ from pathlib import Path
 
 from src.etl.config import DEFAULT_SOURCE_CSV, DEFAULT_STAGING_CSV, get_database_url
 from src.etl.extract import extract_csv
-from src.etl.load import build_normalized_tables, load_to_postgres, persist_staging_csv
+from src.etl.load import (
+    build_normalized_tables,
+    load_to_postgres,
+    persist_staging_csv,
+    validate_normalized_tables,
+)
 from src.etl.transform import run_quality_checks, transform_amazon_data
 
 
@@ -48,6 +53,16 @@ def main() -> int:
     # Modeling step: build normalized warehouse tables from the staging table.
     print("[model] building normalized tables in analytics schema")
     build_normalized_tables(database_url, Path("sql"))
+
+    # Integrity gate: ensure PK/FK assumptions hold after model build.
+    print("[validate] checking normalized table integrity")
+    model_issues = validate_normalized_tables(database_url)
+    if model_issues:
+        print("[validate] integrity checks failed:")
+        for issue in model_issues:
+            print(f"  - {issue}")
+        return 1
+    print("[validate] integrity checks passed")
 
     print("[done] pipeline completed successfully")
     return 0
