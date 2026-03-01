@@ -4,7 +4,7 @@ from pathlib import Path
 
 from src.etl.config import DEFAULT_SOURCE_CSV, DEFAULT_STAGING_CSV, get_database_url
 from src.etl.extract import extract_csv
-from src.etl.load import load_to_postgres, persist_staging_csv
+from src.etl.load import build_normalized_tables, load_to_postgres, persist_staging_csv
 from src.etl.transform import run_quality_checks, transform_amazon_data
 
 
@@ -44,6 +44,10 @@ def main() -> int:
     # Load step: push the transformed dataframe into Postgres staging table.
     print("[load] loading to postgres table analytics.stg_amazon_products")
     load_to_postgres(clean_df, database_url, table_name="stg_amazon_products")
+
+    # Modeling step: build normalized warehouse tables from the staging table.
+    print("[model] building normalized tables in analytics schema")
+    build_normalized_tables(database_url, Path("sql"))
 
     print("[done] pipeline completed successfully")
     return 0

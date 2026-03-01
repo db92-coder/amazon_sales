@@ -36,3 +36,31 @@ def load_to_postgres(df: pd.DataFrame, database_url: str, table_name: str = "stg
         method="multi",
         chunksize=500,
     )
+
+
+def run_sql_file(database_url: str, sql_file: Path) -> None:
+    # Execute raw SQL scripts used for warehouse modeling.
+    sql_text = sql_file.read_text(encoding="utf-8")
+    engine = create_engine(database_url, pool_pre_ping=True)
+    # Use a DBAPI cursor to allow scripts with multiple SQL statements.
+    raw_conn = engine.raw_connection()
+    try:
+        with raw_conn.cursor() as cursor:
+            cursor.execute(sql_text)
+        raw_conn.commit()
+    finally:
+        raw_conn.close()
+
+
+def build_normalized_tables(database_url: str, sql_dir: Path) -> None:
+    # Execute in dependency order: dimensions first, then bridge/facts.
+    ordered_files = [
+        sql_dir / "02_dim_product.sql",
+        sql_dir / "03_dim_category.sql",
+        sql_dir / "04_bridge_product_category.sql",
+        sql_dir / "05_fact_review.sql",
+    ]
+    for sql_file in ordered_files:
+        if not sql_file.exists():
+            raise FileNotFoundError(f"Missing SQL script: {sql_file}")
+        run_sql_file(database_url, sql_file)
