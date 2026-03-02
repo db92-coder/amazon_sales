@@ -5,9 +5,11 @@ from pathlib import Path
 from src.etl.config import DEFAULT_SOURCE_CSV, DEFAULT_STAGING_CSV, get_database_url
 from src.etl.extract import extract_csv
 from src.etl.load import (
+    build_marts,
     build_normalized_tables,
     load_to_postgres,
     persist_staging_csv,
+    validate_marts,
     validate_normalized_tables,
 )
 from src.etl.transform import run_quality_checks, transform_amazon_data
@@ -63,6 +65,20 @@ def main() -> int:
             print(f"  - {issue}")
         return 1
     print("[validate] integrity checks passed")
+
+    # Mart build step: create business-facing aggregate views/tables.
+    print("[model] building analytics marts")
+    build_marts(database_url, Path("sql"))
+
+    # Mart gate: ensure marts are populated and core keys are non-null.
+    print("[validate] checking mart quality")
+    mart_issues = validate_marts(database_url)
+    if mart_issues:
+        print("[validate] mart checks failed:")
+        for issue in mart_issues:
+            print(f"  - {issue}")
+        return 1
+    print("[validate] mart checks passed")
 
     print("[done] pipeline completed successfully")
     return 0

@@ -66,6 +66,19 @@ def build_normalized_tables(database_url: str, sql_dir: Path) -> None:
         run_sql_file(database_url, sql_file)
 
 
+def build_marts(database_url: str, sql_dir: Path) -> None:
+    # Execute marts after normalized dimensions/facts are built.
+    ordered_files = [
+        sql_dir / "07_mart_product_performance.sql",
+        sql_dir / "08_mart_category_performance.sql",
+        sql_dir / "09_mart_review_quality.sql",
+    ]
+    for sql_file in ordered_files:
+        if not sql_file.exists():
+            raise FileNotFoundError(f"Missing SQL script: {sql_file}")
+        run_sql_file(database_url, sql_file)
+
+
 def validate_normalized_tables(database_url: str) -> list[str]:
     # Rule name + query returning a single integer violation count.
     checks: list[tuple[str, str]] = [
@@ -119,6 +132,50 @@ def validate_normalized_tables(database_url: str) -> list[str]:
             LEFT JOIN analytics.dim_product p
               ON p.product_id = f.product_id
             WHERE p.product_id IS NULL;
+            """,
+        ),
+    ]
+
+    issues: list[str] = []
+    engine = create_engine(database_url, pool_pre_ping=True)
+    with engine.begin() as conn:
+        for rule_name, sql_query in checks:
+            violation_count = conn.execute(text(sql_query)).scalar_one()
+            if int(violation_count) > 0:
+                issues.append(f"{rule_name}={violation_count}")
+
+    return issues
+
+
+def validate_marts(database_url: str) -> list[str]:
+    # Checks focused on mart usability and expected non-null KPI fields.
+    checks: list[tuple[str, str]] = [
+        (
+            "mart_product_performance_empty",
+            "SELECT CASE WHEN COUNT(*) = 0 THEN 1 ELSE 0 END FROM analytics.mart_product_performance;",
+        ),
+        (
+            "mart_category_performance_empty",
+            "SELECT CASE WHEN COUNT(*) = 0 THEN 1 ELSE 0 END FROM analytics.mart_category_performance;",
+        ),
+        (
+            "mart_review_quality_empty",
+            "SELECT CASE WHEN COUNT(*) = 0 THEN 1 ELSE 0 END FROM analytics.mart_review_quality;",
+        ),
+        (
+            "mart_product_performance_null_product_id",
+            """
+            SELECT COUNT(*)
+            FROM analytics.mart_product_performance
+            WHERE product_id IS NULL OR TRIM(product_id) = '';
+            """,
+        ),
+        (
+            "mart_category_performance_null_top_category",
+            """
+            SELECT COUNT(*)
+            FROM analytics.mart_category_performance
+            WHERE top_category IS NULL OR TRIM(top_category) = '';
             """,
         ),
     ]
