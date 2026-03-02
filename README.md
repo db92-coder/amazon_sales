@@ -110,9 +110,6 @@ docker exec -i amazon_postgres psql -U postgres -d amazon_sales -f /docker-entry
 - Top products by review volume
 - KPI SQL files in `sql/kpi_*.sql`
 
-## Interview Demo
-Use the step-by-step script in [Interview Demo Script](./docs/interview_demo_script.md).
-
 ## Author Notes
 This project demonstrates core analytics engineering capabilities:
 - building reliable pipelines
